@@ -2,6 +2,7 @@
 
 **Turn a Mermaid diagram into a live control surface.**
 
+[![npm](https://img.shields.io/npm/v/live-diagram)](https://www.npmjs.com/package/live-diagram)
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![no runtime dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 ![no build step required](https://img.shields.io/badge/build%20step-optional-brightgreen)
