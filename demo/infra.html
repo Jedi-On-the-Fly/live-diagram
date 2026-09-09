@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Service health map — live-diagram</title>
+<link rel="stylesheet" href="demo.css">
+</head>
+<body>
+<header>
+  <h1>Service health map</h1>
+  <p>A polling source drives the diagram. Break something and watch it propagate.</p>
+  <button onclick="toggleTheme()">Theme</button>
+  <a href="index.html">← all demos</a>
+</header>
+
+<main>
+  <section class="panel stage"><div id="diagram" style="height:100%"></div></section>
+
+  <aside class="side">
+    <section class="panel">
+      <h2>Chaos</h2>
+      <div class="body">
+        <div class="row">
+          <button id="break-db">Break database</button>
+          <button id="break-cache">Break cache</button>
+          <button class="primary" id="heal">Heal everything</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button id="unplug">Pull the plug</button>
+          <button id="replug">Reconnect</button>
+        </div>
+        <p style="color:var(--muted);font-size:12px;margin:12px 0 0">
+          Polled every 1.5s. Pull the plug and the diagram <em>says</em> it is out of
+          date instead of showing stale health as if it were current; reconnecting
+          asks for the truth rather than waiting for the next change.
+        </p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Source</h2>
+      <pre class="snippet">diagram.connect(
+  LiveDiagram.pollSource(
+    () => fetch('/health')
+      .then(r =&gt; r.json()),
+    { interval: 1500 }
+  )
+);</pre>
+    </section>
+
+    <section class="panel">
+      <h2>Legend</h2>
+      <div class="body"><div id="legend"></div></div>
+    </section>
+
+    <section class="panel">
+      <h2>Poll log</h2>
+      <pre class="log" id="log"></pre>
+    </section>
+  </aside>
+</main>
+
+<script src="boot.js"></script>
+<script>
+const GRAPH = {
+  direction: 'LR',
+  nodes: {
+    edge:    { label: 'Edge / CDN', shape: 'stadium' },
+    gateway: { label: 'API gateway' },
+    api:     { label: 'API' },
+    worker:  { label: 'Worker' },
+    queue:   { label: 'Queue', shape: 'cylinder' },
+    cache:   { label: 'Cache', shape: 'cylinder' },
+    db:      { label: 'Database', shape: 'cylinder' }
+  },
+  edges: [
+    { from: 'edge', to: 'gateway' },
+    { from: 'gateway', to: 'api' },
+    { from: 'api', to: 'cache' },
+    { from: 'api', to: 'db' },
+    { from: 'api', to: 'queue' },
+    { from: 'queue', to: 'worker' },
+    { from: 'worker', to: 'db' }
+  ]
+};
+
+const STATES = {
+  up:       { label: 'up',       style: 'fill:#dcfce7,stroke:#16a34a,color:#14532d', darkStyle: 'fill:#14532d,stroke:#4ade80,color:#bbf7d0' },
+  degraded: { label: 'degraded', style: 'fill:#fef9c3,stroke:#ca8a04,color:#713f12', darkStyle: 'fill:#854d0e,stroke:#facc15,color:#fef9c3' },
+  down:     { label: 'down',     style: 'fill:#fee2e2,stroke:#dc2626,color:#7f1d1d', darkStyle: 'fill:#7f1d1d,stroke:#f87171,color:#fecaca' }
+};
+
+// Stand-in for a real /health endpoint.
+let detach = null;
+const broken = new Set();
+
+function connectHealth() {
+  detach = diagram.connect(LiveDiagram.pollSource(fakeHealth, { interval: 1500 }), {
+    // Asked for the truth on every (re)connect, instead of waiting for whatever
+    // changes next.
+    backfill: fakeHealth,
+    // A poller that fails silently is the common case; say so after 5s of quiet.
+    staleAfter: 5000
+  });
+}
+const DEPENDENTS = { db: ['api', 'worker'], cache: ['api'], queue: ['worker'] };
+
+async function fakeHealth() {
+  await new Promise((r) => setTimeout(r, 80));
+  const patch = {};
+  const health = {};
+  for (const id of Object.keys(GRAPH.nodes)) {
+    const down = broken.has(id);
+    const degraded = !down && Object.entries(DEPENDENTS)
+      .some(([dep, users]) => broken.has(dep) && users.includes(id));
+    const latency = down ? null : Math.round((degraded ? 400 : 20) + Math.random() * (degraded ? 600 : 60));
+    health[id] = down ? 'down' : degraded ? 'degraded' : 'up';
+    patch[id] = {
+      state: health[id],
+      badge: latency == null ? 'timeout' : latency + 'ms',
+      data: { latency }
+    };
+  }
+  // Edges carry state too, in the same patch: a call into a dead service is a
+  // dead call, and on a service map that is the thing you look at first.
+  for (const edge of GRAPH.edges) {
+    const id = `${edge.from}->${edge.to}`;
+    patch[id] = {
+      state: health[edge.to] === 'down' ? 'down' : health[edge.to] === 'degraded' ? 'degraded' : 'up',
+      data: { calls: Math.round(20 + Math.random() * 400) }
+    };
+  }
+  return patch;
+}
+
+function demo() {
+  window.diagram = new LiveDiagram({
+    mount: '#diagram',
+    graph: GRAPH,
+    states: STATES,
+    extendStates: false,
+    defaultState: 'up',
+    controls: true,
+    theme: document.documentElement.getAttribute('data-theme')
+  });
+
+  diagram.on('nodeClick', ({ id, state, data }) =>
+    log(`<b>${id}</b> is ${state}${data && data.latency ? ` (${data.latency}ms)` : ''}`));
+  diagram.on('edgeClick', ({ from, to, state, data }) =>
+    log(`<b>${from} → ${to}</b> is ${state}${data && data.calls ? ` (${data.calls} calls/min)` : ''}`));
+
+  // The legend and the hover card are built from the vocabulary and the
+  // payloads the diagram already has — no bookkeeping of our own.
+  LiveDiagram.legend(diagram, { mount: '#legend' });
+  LiveDiagram.inspector(diagram, { mode: 'tooltip' });
+
+  // The whole integration: one source, one line — plus the two options that
+  // make a dropped connection honest rather than invisible.
+  connectHealth();
+
+  diagram.on('connection', ({ connected }) => log(connected ? 'connection <b>restored</b>' : 'connection <b>lost</b>'));
+  diagram.on('backfill', () => log('backfilled current health'));
+
+  diagram.on('change', ({ changed, structural }) => {
+    if (structural) log(changed.map((id) => `${id} → <b>${diagram.get(id).state}</b>`).join(', '));
+  });
+
+  document.getElementById('unplug').onclick = () => {
+    if (detach) { detach(); detach = null; }
+    // Nothing else to do: the diagram dims itself and says so.
+    log('poller stopped — the diagram is now out of date and shows it');
+  };
+  document.getElementById('replug').onclick = () => { if (!detach) connectHealth(); };
+
+  document.getElementById('break-db').onclick = () => { broken.add('db'); log('chaos: database down'); };
+  document.getElementById('break-cache').onclick = () => { broken.add('cache'); log('chaos: cache down'); };
+  document.getElementById('heal').onclick = () => { broken.clear(); log('chaos: healed'); };
+}
+
+function log(html) {
+  const el = document.getElementById('log');
+  el.innerHTML = (html + (el.innerHTML ? '\n' + el.innerHTML : '')).split('\n').slice(0, 40).join('\n');
+}
+</script>
+</body>
+</html>

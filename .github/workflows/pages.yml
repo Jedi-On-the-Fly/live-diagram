@@ -1,0 +1,46 @@
+name: Demos
+
+# Publishes demo/ (and dist/, which the demos load) to GitHub Pages, so the
+# README can link to a running diagram rather than to a screenshot of one.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run build
+      - name: Assemble the site
+        run: |
+          mkdir -p _site/demo _site/dist
+          cp -r demo/* _site/demo/
+          cp dist/* _site/dist/
+          cp starter.html _site/
+          cp -r docs/media _site/media
+          # The demos load ../dist/*, which resolves the same way once deployed.
+          printf '<!doctype html><meta http-equiv="refresh" content="0; url=./demo/">\n' > _site/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

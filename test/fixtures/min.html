@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>live-diagram minified build</title>
+<style>html,body{margin:0}#host{width:800px;height:500px}</style>
+</head>
+<body>
+<div id="host"></div>
+<script>
+// Deliberately the minified file: this fixture exists to prove that the bytes
+// a <script> tag actually downloads still work, not just the readable twin.
+window.__ready = new Promise((resolve, reject) => {
+  const load = (src, ok, fail) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = ok; s.onerror = fail;
+    document.head.appendChild(s);
+  };
+  const then = () => load('/dist/live-diagram.umd.min.js', resolve, reject);
+  load('/demo/vendor/mermaid.min.js', then,
+    () => load('https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js', then, reject));
+});
+</script>
+</body>
+</html>

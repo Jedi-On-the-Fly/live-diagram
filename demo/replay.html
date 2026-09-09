@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run replay — live-diagram</title>
+<link rel="stylesheet" href="demo.css">
+</head>
+<body>
+<header>
+  <h1>Run replay</h1>
+  <p>A finished run, scrubbed. Same component, same state channel — just a different clock.</p>
+  <button onclick="toggleTheme()">Theme</button>
+  <a href="index.html">← all demos</a>
+</header>
+
+<main>
+  <section class="panel stage"><div id="diagram" style="height:100%"></div></section>
+
+  <aside class="side">
+    <section class="panel">
+      <h2>Transport</h2>
+      <div class="body">
+        <div id="transport"></div>
+        <dl class="kv" style="margin-top:12px">
+          <dt>at</dt><dd id="clock">0.0s</dd>
+          <dt>event</dt><dd id="cursor">0 / 0</dd>
+          <dt>failed</dt><dd id="failed">—</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Recorded events</h2>
+      <pre class="log" id="events"></pre>
+    </section>
+  </aside>
+</main>
+
+<script src="boot.js"></script>
+<script>
+const GRAPH = {
+  direction: 'TB',
+  nodes: {
+    fetch:    { label: 'Fetch source', shape: 'stadium' },
+    migrate:  { label: 'DB migration' },
+    assets:   { label: 'Build assets' },
+    image:    { label: 'Build image' },
+    scan:     { label: 'Security scan', shape: 'diamond' },
+    canary:   { label: 'Canary 5%' },
+    rollout:  { label: 'Full rollout', shape: 'stadium' }
+  },
+  edges: [
+    { from: 'fetch', to: 'migrate' },
+    { from: 'fetch', to: 'assets' },
+    { from: 'assets', to: 'image' },
+    { from: 'migrate', to: 'image' },
+    { from: 'image', to: 'scan' },
+    { from: 'scan', to: 'canary', condition: 'clean', label: 'clean' },
+    { from: 'canary', to: 'rollout', condition: 'healthy', label: 'healthy' }
+  ]
+};
+
+// What a recorded run looks like: absolute timestamps, one row per change.
+// This is exactly the shape a JSONL run log has after `toTimelineEvents`.
+const T0 = 1756900000000;
+const RECORDED = [
+  { t: T0 + 0,     node: 'fetch',   state: 'running' },
+  { t: T0 + 1200,  node: 'fetch',   state: 'success', badge: '1.2s' },
+  { t: T0 + 1300,  node: 'migrate', state: 'running' },
+  { t: T0 + 1300,  node: 'assets',  state: 'running' },
+  { t: T0 + 4100,  node: 'assets',  state: 'success', badge: '2.8s' },
+  { t: T0 + 5200,  node: 'migrate', state: 'success', badge: '3.9s' },
+  { t: T0 + 5400,  node: 'image',   state: 'running' },
+  { t: T0 + 9900,  node: 'image',   state: 'success', badge: '4.5s' },
+  { t: T0 + 10100, node: 'scan',    state: 'running' },
+  { t: T0 + 13800, node: 'scan',    state: 'error',   badge: 'CVE-2026-1337' },
+  { t: T0 + 13900, node: 'canary',  state: 'skipped' },
+  { t: T0 + 13900, node: 'rollout', state: 'skipped' }
+];
+
+let timeline;
+
+function demo() {
+  window.diagram = new LiveDiagram({
+    mount: '#diagram',
+    graph: GRAPH,
+    controls: true,
+    theme: document.documentElement.getAttribute('data-theme')
+  });
+
+  timeline = diagram.timeline(RECORDED);
+
+  // Play / pause / step / scrub, from the library. This demo used to hand-roll
+  // it; that is exactly why it is in the box now.
+  LiveDiagram.transport(diagram, timeline, { mount: '#transport', speed: 2, loop: true });
+
+  diagram.on('tick', ({ position, index }) => {
+    document.getElementById('clock').textContent = (position / 1000).toFixed(1) + 's';
+    document.getElementById('cursor').textContent = `${index} / ${timeline.length}`;
+    document.getElementById('failed').textContent =
+      Object.entries(diagram.snapshot().states).filter(([, s]) => s === 'error').map(([id]) => id).join(', ') || '—';
+    paintEventList(index);
+  });
+
+  paintEventList(0);
+  timeline.seek(0);
+}
+
+function paintEventList(index) {
+  document.getElementById('events').innerHTML = RECORDED.map((e, i) => {
+    const at = ((e.t - T0) / 1000).toFixed(1).padStart(5, ' ');
+    const line = `${at}s  ${e.node} → ${e.state}${e.badge ? '  [' + e.badge + ']' : ''}`;
+    return i < index ? `<b>${line}</b>` : line;
+  }).join('\n');
+}
+</script>
+</body>
+</html>

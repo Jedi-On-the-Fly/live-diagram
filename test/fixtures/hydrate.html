@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>hydration fixture</title>
+<style>html,body{margin:0;font:14px system-ui}</style>
+</head>
+<body>
+<h1>Docs page</h1>
+
+<p>A script block, the form that survives every Markdown pipeline:</p>
+<script type="application/live-diagram+json">
+{
+  "height": "240px",
+  "graph": {
+    "direction": "LR",
+    "nodes": { "one": { "label": "One" }, "two": { "label": "Two" } },
+    "edges": [{ "from": "one", "to": "two" }]
+  },
+  "initial": { "one": "success" }
+}
+</script>
+
+<p>A fenced code block, as a docs site renders it:</p>
+<pre><code class="language-live-diagram">{
+  "graph": { "nodes": { "alpha": "Alpha", "beta": "Beta" }, "edges": [{ "from": "alpha", "to": "beta" }] },
+  "events": [
+    { "t": 0, "node": "alpha", "state": "running" },
+    { "t": 500, "node": "alpha", "state": "success", "badge": "0.5s" },
+    { "t": 500, "node": "beta", "state": "running" },
+    { "t": 900, "node": "beta", "state": "error" }
+  ]
+}</code></pre>
+
+<p>An attribute, for hand-written HTML:</p>
+<div data-live-diagram='{"nodes":{"solo":{"label":"Solo","shape":"stadium"}}}' style="height:200px"></div>
+
+<p>And a broken one, which must not eat the page:</p>
+<pre><code class="language-live-diagram">{ this is not json }</code></pre>
+
+<p>Docusaurus puts the language class on the &lt;pre&gt;:</p>
+<pre class="language-live-diagram"><code class="codeBlockLines_e6Vv">{ "nodes": { "docu": { "label": "Docusaurus" } } }</code></pre>
+
+<p>VitePress wraps the block in a div and adds furniture:</p>
+<div class="language-live-diagram"><button class="copy"></button><span class="lang">live-diagram</span><pre class="shiki"><code><span class="line">{ "nodes": { "vite": { "label": "VitePress" } } }</span></code></pre></div>
+
+<p>Jekyll nests two divs:</p>
+<div class="language-live-diagram highlighter-rouge"><div class="highlight"><pre class="highlight"><code>{ "nodes": { "jek": { "label": "Jekyll" } } }</code></pre></div></div>
+
+<p>Hugo marks the code element with data-lang:</p>
+<div class="highlight"><pre tabindex="0"><code class="language-live-diagram" data-lang="live-diagram">{ "nodes": { "hugo": { "label": "Hugo" } } }</code></pre></div>
+
+<live-diagram id="element"
+  height="240px"
+  controls
+  graph='{"direction":"LR","nodes":{"x":{"label":"X"},"y":{"label":"Y"}},"edges":[{"from":"x","to":"y"}]}'>
+</live-diagram>
+
+<script>
+window.__ready = new Promise((resolve, reject) => {
+  const load = (src, ok, fail) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = ok; s.onerror = fail;
+    document.head.appendChild(s);
+  };
+  const then = () => load('/dist/live-diagram.umd.js', resolve, reject);
+  load('/demo/vendor/mermaid.min.js', then,
+    () => load('https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js', then, reject));
+});
+</script>
+</body>
+</html>

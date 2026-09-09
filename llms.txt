@@ -1,0 +1,110 @@
+# live-diagram
+
+> Turns a Mermaid diagram into a live control surface: push state in, get node clicks out, replay a
+> recorded run. MIT, zero runtime dependencies, Mermaid as an optional peer, no build step required.
+
+Use it when a diagram should show status, be clickable, or replay a run — pipelines, workflows,
+service health, state machines, lineage graphs. Do not use it for a static picture (a plain mermaid
+fence is better), for editing diagrams (there is no editor), or as a workflow engine (it renders
+state; it never decides it).
+
+## Install
+
+```html
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<script src="https://unpkg.com/live-diagram/dist/live-diagram.umd.min.js"></script>
+```
+
+`npm install live-diagram` for bundlers; `live-diagram/react` for the React binding. Mermaid must
+load before the library is used.
+
+## Three APIs, cheapest first
+
+1. **Hydration** (documentation, CMS): add `data-auto` to the script tag, then write a
+   ```` ```live-diagram ```` fence or a `<script type="application/live-diagram+json">` block whose
+   content is `{graph, states?, initial?, events?, height?, theme?, controls?}`. A spec with
+   `events` and no `autoplay` shows the recorded end state. `LiveDiagram.hydrate(root)` runs it by
+   hand — single-page docs sites must call that after each route change.
+2. **The custom element**: `<live-diagram height="380px" controls graph='{…}'>`. Also takes `src`,
+   `states`, `initial`, `theme`, `direction`, `default-state`, `fit="observe"` (refit on container
+   resize until the user zooms), and the flags `icons`, `bare`,
+   `no-fit`, `autoplay`, `loop`. Emits `nodeclick`, `nodehover`, `statechange`, `ready`,
+   `diagramerror` as bubbling DOM events. Forwards `patch()`, `snapshot()`, `timeline()` and the rest.
+3. **The class**: `new LiveDiagram({mount, graph, states?, initial?, theme?, controls?})`.
+   `autoFit: 'observe'` keeps the diagram fitted as its container resizes, until the user zooms
+   (ignored in bare mode). The surface paints `var(--ld-bg, transparent)`; `setTheme()` themes the
+   diagram box only — node/edge colours compile from the vocabulary (`style`/`darkStyle`), not CSS.
+
+`graph` accepts **Mermaid flowchart source** as well as an object, everywhere it is accepted —
+constructor, `setGraph()`, the element's attribute, a fenced block. `parseMermaid(source)` exposes
+the parser. Other diagram types are refused by name.
+
+## The class in one screen
+
+```js
+diagram.patch({ build: 'success', test: { state: 'running', badge: '4.2s', data: { pid: 22 } } });
+diagram.patch({ 'build->test': 'error' });            // edges are addressable and carry state
+diagram.on('edgeClick', ({ from, to, state }) => {});
+diagram.on('nodeClick', ({ id, state, data }) => {});
+diagram.timeline(events).play({ speed: 2 });          // [{t, node, state, badge?}]
+diagram.connect(source, { backfill: fetchSnapshot, staleAfter: 30000 });  // survive a reconnect
+diagram.overlay('build', '<progress value="60" max="100">', { position: 'bottom' });  // any HTML on a node
+diagram.setGraph(graph); diagram.setTheme('dark'); diagram.destroy();
+```
+
+Graph: `{direction: 'TB'|'LR'|…, nodes: {id: {label, shape, description}}, edges: [{from, to, label,
+condition}], groups: [{id, label, nodes}]}`. **Node ids must match `/^[A-Za-z_][A-Za-z0-9_]*$/`.**
+Shapes: rect, rounded, stadium, diamond, circle, hex, subroutine, cylinder.
+
+States: a vocabulary mapping a status name to `{style, darkStyle, icon, label}`. Built in: idle,
+queued, running, waiting, success, error, skipped. `extendStates: false` starts from an empty one.
+`rgb()`/`rgba()`/`hsl()` colours are rewritten to hex at construction (Mermaid cannot parse commas
+inside a style declaration).
+
+## Kit (optional components)
+
+`legend(diagram, {mount, hideUnused})`, `inspector(diagram, {mode: 'panel'|'tooltip', template})`,
+`transport(diagram, timeline, {mount, speed})`. Each returns `{el, destroy()}` and is built from
+data the diagram already holds.
+
+## Connection, overlays, export
+
+`connect(source, {backfill, staleAfter, markStale})` — a reconnect does not replay missed events, so
+backfill asks for the truth and, until it arrives, the diagram shows `data-ld-connection="stale"`
+(dimmed, labelled) instead of pretending. Events: `connection`, `stale`, `backfill`.
+
+`overlay(nodeId, content, {position, offset, className, interactive})` anchors any element or HTML
+to a node and returns it; nine anchors, survives re-renders, `null` removes. `clearOverlays()`.
+
+`toSVG(diagram, {background, badges})`, `toPNG(diagram, {scale})` — PNG refuses Mermaid HTML labels,
+use `mermaidRenderer({svgLabels: true})`. `download(diagram, {format, filename})`.
+`shareUrl(diagram, {graph})` / `applyShared(diagram, hash)` / `encodeState` / `decodeState`.
+
+State diagrams: `stateDiagram-v2` source parses like a flowchart ([*] terminals per scope,
+composites as groups, transitions naming a composite redirected to its start/stop).
+
+## Adapters
+
+`fromGitHubActions(jobsPayload, {needs?, mode?})` — a workflow run as a graph plus a timeline;
+stages are inferred from start times because GitHub does not expose `needs:`.
+`toTimelineEvents(rows, {time, node, state, badge})` — any log with a row per state change.
+`graphFromEvents(events)` — a first-seen chain when there is no declared structure.
+
+## Traps
+
+- A mount element with no height renders an invisible diagram.
+- `<div id="diagram">` makes `window.diagram` the element; use a scoped variable.
+- `showIcons: true` costs the repaint fast path, because icons live in the node label.
+- Keep one instance per container and `patch()` it; do not rebuild it per state change.
+- Construct in the browser only — the constructor touches `document`.
+- Do not write Mermaid `click` directives; clicks are delegated from the container.
+- Do not size the svg inside `.ld` from CSS — its inline width IS the zoom (no transform exists).
+
+## Docs
+
+- README.md — full API, recipes, performance, non-goals
+- integrations/ — Docusaurus, VitePress, MkDocs, Astro, and the fix each SPA needs
+- demo/ — CI pipeline, GitHub Actions run, state machine, replay, health map
+- starter.html — the whole thing in one file
+- skills/ — agent skills (embed, from-data, troubleshoot, release); copy into ~/.claude/skills/
+- AGENTS.md — contributing to the library itself

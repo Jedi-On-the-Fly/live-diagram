@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playground — live-diagram</title>
+<link rel="stylesheet" href="demo.css">
+<style>
+  main { grid-template-columns: 380px minmax(0, 1fr); }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  textarea {
+    width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+    background: var(--code-bg); color: var(--ink); resize: vertical;
+    font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .err { color: #dc2626; font-size: 12.5px; margin: 8px 0 0; white-space: pre-wrap; }
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Playground</h1>
+  <p>Paste the Mermaid diagram you already have. Add state. Share the URL.</p>
+  <button onclick="toggleTheme()">Theme</button>
+  <a href="index.html">← all demos</a>
+</header>
+
+<main>
+  <aside class="side">
+    <section class="panel">
+      <h2>Mermaid source</h2>
+      <div class="body">
+        <textarea id="source" rows="14" spellcheck="false"></textarea>
+        <p class="err" id="error"></p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>State</h2>
+      <div class="body">
+        <textarea id="state" rows="6" spellcheck="false"></textarea>
+        <div class="row" style="margin-top:10px">
+          <button class="primary" id="apply">Apply</button>
+          <button id="share">Copy share link</button>
+          <button id="svg">Save SVG</button>
+        </div>
+      </div>
+    </section>
+  </aside>
+
+  <div class="stack">
+    <section class="panel stage" style="height:min(58vh,520px)">
+      <div id="diagram" style="height:100%"></div>
+    </section>
+    <section class="panel">
+      <h2>Legend</h2>
+      <div class="body"><div id="legend"></div></div>
+    </section>
+  </div>
+</main>
+
+<script src="boot.js"></script>
+<script>
+const SAMPLE = `flowchart LR
+  ingest[Ingest] --> validate{Valid?}
+  validate -- yes --> enrich(Enrich)
+  validate -- no --> quarantine[[Quarantine]]
+  enrich --> load[(Warehouse)]
+  quarantine -.retry.-> ingest`;
+
+const SAMPLE_STATE = `{
+  "ingest": "success",
+  "validate": { "state": "running", "badge": "1.4s" },
+  "quarantine": "skipped",
+  "ingest->validate": "success",
+  "validate->enrich": "running"
+}`;
+
+let chart = null;
+let kit = { legend: null, tip: null };
+
+function demo() {
+  const fromUrl = LiveDiagram.decodeState(location.hash) || {};
+  document.getElementById('source').value = fromUrl.source || SAMPLE;
+  document.getElementById('state').value = fromUrl.state || SAMPLE_STATE;
+
+  document.getElementById('apply').onclick = build;
+  document.getElementById('share').onclick = share;
+  document.getElementById('svg').onclick = () => LiveDiagram.download(chart, { format: 'svg', filename: 'diagram.svg', background: '#ffffff' });
+  // Rebuild as you type, but not on every keystroke.
+  let timer = null;
+  for (const id of ['source', 'state']) {
+    document.getElementById(id).addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(build, 500);
+    });
+  }
+  build();
+}
+
+function build() {
+  const source = document.getElementById('source').value;
+  const raw = document.getElementById('state').value.trim();
+  const problem = document.getElementById('error');
+
+  let patch = {};
+  if (raw) {
+    try { patch = JSON.parse(raw); }
+    catch (err) { problem.textContent = 'State: ' + err.message; return; }
+  }
+
+  try {
+    if (chart) { kit.legend.destroy(); kit.tip.destroy(); chart.destroy(); }
+    // Mermaid source goes straight in — no translation step.
+    chart = window.chart = new LiveDiagram({
+      mount: '#diagram',
+      graph: source,
+      controls: true,
+      theme: document.documentElement.getAttribute('data-theme')
+    });
+    kit.legend = LiveDiagram.legend(chart, { mount: '#legend', hideUnused: true });
+    kit.tip = LiveDiagram.inspector(chart, { mode: 'tooltip' });
+    chart.patch(patch);
+    problem.textContent = '';
+  } catch (err) {
+    problem.textContent = err.message;
+  }
+}
+
+function share() {
+  // The library encodes the source and the state together, URL-safe.
+  location.hash = LiveDiagram.encodeState({
+    source: document.getElementById('source').value,
+    state: document.getElementById('state').value
+  });
+  const button = document.getElementById('share');
+  if (navigator.clipboard) navigator.clipboard.writeText(location.href).catch(() => {});
+  button.textContent = 'Copied ✓';
+  setTimeout(() => { button.textContent = 'Copy share link'; }, 1600);
+}
+</script>
+</body>
+</html>

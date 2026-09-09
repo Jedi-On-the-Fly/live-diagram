@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>State machine inspector — live-diagram</title>
+<link rel="stylesheet" href="demo.css">
+</head>
+<body>
+<header>
+  <h1>State machine inspector</h1>
+  <p>Written as <code>stateDiagram-v2</code>. Click a state to fire the transition into it.</p>
+  <button onclick="toggleTheme()">Theme</button>
+  <a href="index.html">← all demos</a>
+</header>
+
+<main>
+  <section class="panel stage"><div id="diagram" style="height:100%"></div></section>
+
+  <aside class="side">
+    <section class="panel">
+      <h2>Machine</h2>
+      <div class="body">
+        <dl class="kv">
+          <dt>current</dt><dd id="current">draft</dd>
+          <dt>allowed</dt><dd id="allowed">—</dd>
+        </dl>
+        <div class="row" style="margin-top:12px"><button id="reset">Reset to draft</button></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Vocabulary</h2>
+      <div class="body legend" id="legend"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Transitions</h2>
+      <pre class="log" id="log">click a highlighted state…</pre>
+    </section>
+  </aside>
+</main>
+
+<script src="boot.js"></script>
+<script>
+// A state machine, written as a state diagram — because that is what it is.
+// The parser turns `stateDiagram-v2` into the same graph a flowchart makes.
+const SOURCE = `stateDiagram-v2
+  direction LR
+  [*] --> draft
+  draft --> submitted : submit
+  draft --> cancelled : cancel
+  submitted --> approved : approve
+  submitted --> rejected : reject
+  submitted --> cancelled : cancel
+  approved --> shipped : ship
+  shipped --> delivered : deliver
+  rejected --> draft : revise
+  cancelled --> draft : reopen
+  delivered --> [*]`;
+
+// The legal moves are the diagram's own edges — no second copy to keep in step.
+let TRANSITIONS = {};
+
+// A vocabulary of this machine's own words — nothing to do with runs or jobs.
+// `extend: false` starts from an empty state map instead of the defaults.
+const STATES = {
+  current:     { label: 'current',     style: 'fill:#4f46e5,stroke:#312e81,color:#ffffff',
+                 darkStyle: 'fill:#6366f1,stroke:#c7d2fe,color:#0b1220' },
+  visited:     { label: 'visited',     style: 'fill:#e0e7ff,stroke:#6366f1,color:#3730a3',
+                 darkStyle: 'fill:#1e1b4b,stroke:#818cf8,color:#c7d2fe' },
+  available:   { label: 'available',   style: 'fill:#dcfce7,stroke:#16a34a,color:#14532d',
+                 darkStyle: 'fill:#14532d,stroke:#4ade80,color:#bbf7d0' },
+  unreachable: { label: 'unreachable', style: 'fill:#f8fafc,stroke:#cbd5e1,color:#94a3b8',
+                 darkStyle: 'fill:#0f172a,stroke:#334155,color:#64748b' }
+};
+
+let current = 'draft';
+const visited = new Set(['draft']);
+
+function demo() {
+  window.diagram = new LiveDiagram({
+    mount: '#diagram',
+    graph: SOURCE,
+    states: STATES,
+    extendStates: false,
+    defaultState: 'unreachable',
+    controls: true,
+    theme: document.documentElement.getAttribute('data-theme')
+  });
+
+  // Read the machine out of the parsed graph: every edge is a legal move, and
+  // the edge label is what that move is called.
+  for (const edge of diagram.graph.edges) {
+    (TRANSITIONS[edge.from] = TRANSITIONS[edge.from] || []).push({ to: edge.to, label: edge.label });
+  }
+
+  diagram.on('nodeClick', ({ id }) => {
+    if (id === current) { log(`already in <b>${id}</b>`); return; }
+    const move = (TRANSITIONS[current] || []).find((t) => t.to === id);
+    if (!move) {
+      log(`<b>${current}</b> ✗ ${id} — not a legal transition`);
+      return;
+    }
+    log(`<b>${current}</b> → <b>${id}</b>${move.label ? ` (${move.label})` : ''}`);
+    current = id;
+    visited.add(id);
+    paint();
+  });
+
+  document.getElementById('reset').onclick = () => {
+    current = 'draft'; visited.clear(); visited.add('draft');
+    document.getElementById('log').innerHTML = 'click a highlighted state…';
+    paint();
+  };
+
+  // The legend is the library's, built from the same vocabulary the diagram
+  // renders from — it cannot drift out of step with the colours on screen.
+  LiveDiagram.legend(diagram, { mount: '#legend' });
+
+  paint();
+}
+
+/** One patch describes the whole machine — no per-node bookkeeping. */
+function paint() {
+  const patch = {};
+  const allowed = (TRANSITIONS[current] || []).map((t) => t.to);
+  for (const id of Object.keys(diagram.graph.nodes)) {
+    patch[id] = id === current ? 'current'
+      : allowed.includes(id) ? 'available'
+      : visited.has(id) ? 'visited' : 'unreachable';
+  }
+  // Edges take state in the same patch: the moves you can make light up too.
+  for (const edge of diagram.graph.edges) {
+    patch[edge.id] = edge.from === current ? 'available'
+      : (visited.has(edge.from) && visited.has(edge.to)) ? 'visited' : 'unreachable';
+  }
+  diagram.patch(patch);
+  document.getElementById('current').textContent = current;
+  document.getElementById('allowed').textContent = allowed.join(', ') || 'terminal state';
+}
+
+function log(html) {
+  const el = document.getElementById('log');
+  if (el.textContent.startsWith('click a')) el.innerHTML = '';
+  el.innerHTML += (el.innerHTML ? '\n' : '') + html;
+  el.scrollTop = el.scrollHeight;
+}
+</script>
+</body>
+</html>

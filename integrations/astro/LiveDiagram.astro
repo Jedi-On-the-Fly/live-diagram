@@ -1,0 +1,28 @@
+---
+/**
+ * A thin Astro wrapper: it exists so pages can pass a real object instead of a
+ * JSON string, and so the height has a sensible default.
+ *
+ * Copy to src/components/LiveDiagram.astro.
+ */
+export interface Props {
+  graph: object;
+  states?: object;
+  initial?: object;
+  events?: object[];
+  height?: string;
+  theme?: 'light' | 'dark' | 'auto';
+  controls?: boolean;
+}
+
+const { graph, states, initial, height = '420px', theme = 'auto', controls = true } = Astro.props;
+---
+
+<live-diagram
+  height={height}
+  theme={theme}
+  controls={controls ? '' : undefined}
+  graph={JSON.stringify(graph)}
+  states={states ? JSON.stringify(states) : undefined}
+  initial={initial ? JSON.stringify(initial) : undefined}
+></live-diagram>

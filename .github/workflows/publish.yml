@@ -1,0 +1,34 @@
+name: Publish
+
+# Tag a release (`npm run release:patch` pushes the tag) and this publishes to
+# npm with provenance. It re-runs the full matrix first: a broken publish
+# cannot be unpublished after 72 hours, so the gate is worth the two minutes.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run build
+      - name: dist/ must match src/
+        run: git diff --exit-code dist/
+      - run: npm test
+      - name: Browser tests
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:browser
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -1,0 +1,97 @@
+{
+  "name": "live-diagram",
+  "version": "0.4.2",
+  "description": "Turn a Mermaid diagram into a live control surface: push state in, get clicks out, replay the whole thing.",
+  "keywords": [
+    "mermaid",
+    "diagram",
+    "flowchart",
+    "interactive",
+    "live",
+    "realtime",
+    "workflow",
+    "dag",
+    "visualization",
+    "replay",
+    "observability"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/live-diagram.cjs",
+  "module": "./src/index.js",
+  "unpkg": "./dist/live-diagram.umd.min.js",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./src/index.js",
+      "require": "./dist/live-diagram.cjs",
+      "default": "./dist/live-diagram.umd.min.js"
+    },
+    "./react": {
+      "types": "./react/index.d.ts",
+      "import": "./react/index.js",
+      "default": "./react/index.js"
+    },
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "dist",
+    "react",
+    "skills",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "node scripts/build.js && npm run types",
+    "test": "node --test \"test/**/*.test.js\"",
+    "test:browser": "node scripts/vendor-mermaid.js && node --test \"test/*.browser.test.mjs\" test/browser.test.mjs",
+    "demo": "node scripts/vendor-mermaid.js && node scripts/serve.js",
+    "prepublishOnly": "npm run build && npm test && npm run size",
+    "release:patch": "npm run build && npm test && npm version patch && git push --follow-tags",
+    "release:minor": "npm run build && npm test && npm version minor && git push --follow-tags",
+    "release:major": "npm run build && npm test && npm version major && git push --follow-tags",
+    "test:element": "node --test test/element.browser.test.mjs",
+    "types": "node -e \"require('node:fs').rmSync('dist/types',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "size": "node scripts/size.js"
+  },
+  "peerDependencies": {
+    "mermaid": ">=10",
+    "react": ">=17"
+  },
+  "peerDependenciesMeta": {
+    "mermaid": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "sizeLimits": {
+    "dist/live-diagram.umd.min.js": 23,
+    "dist/live-diagram.umd.js": 49,
+    "dist/live-diagram.cjs": 49,
+    "dist/live-diagram.esm.js": 48
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1",
+    "react": "^19.2.8",
+    "terser": "^5.51.2",
+    "typescript": "^7.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MistaMid/live-diagram.git"
+  },
+  "homepage": "https://mistamid.github.io/live-diagram/demo/",
+  "bugs": {
+    "url": "https://github.com/MistaMid/live-diagram/issues"
+  },
+  "types": "./dist/types/index.d.ts"
+}

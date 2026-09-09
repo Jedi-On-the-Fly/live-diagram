@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>live-diagram starter</title>
+<!--
+  The whole library in one page. Copy this file, edit the two marked blocks,
+  and you have a live diagram — no build step, no framework, no bundler.
+
+  Opened straight from disk (file://) it falls back to the CDN copies.
+-->
+<style>
+  body { margin: 0; font: 15px/1.6 system-ui, sans-serif; background: #f6f7f9; color: #10141c; }
+  @media (prefers-color-scheme: dark) { body { background: #0b0f17; color: #e6eaf2; } }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 20px; }
+  #diagram { height: 420px; border: 1px solid rgba(128,140,160,.35); border-radius: 10px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  button { font: 500 14px system-ui, sans-serif; padding: 8px 12px; border-radius: 8px; cursor: pointer;
+           border: 1px solid rgba(128,140,160,.5); background: transparent; color: inherit; }
+  button:hover { border-color: #4f6bff; color: #4f6bff; }
+  p.out { font: 13px ui-monospace, Menlo, monospace; color: #6b7688; min-height: 1.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>live-diagram starter</h1>
+  <div id="diagram"></div>
+  <div class="row">
+    <button id="start">Start</button>
+    <button id="finish">Finish</button>
+    <button id="break">Break it</button>
+    <button id="reset">Reset</button>
+  </div>
+  <p class="out" id="out">Click a node.</p>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<!-- Prefer the local build when this file sits in a clone; fall back to the CDN. -->
+<script src="dist/live-diagram.umd.js"></script>
+<script>
+  if (!window.LiveDiagram) {
+    document.write('<script src="https://unpkg.com/live-diagram/dist/live-diagram.umd.min.js"><\/script>');
+  }
+</script>
+
+<script>
+window.addEventListener('load', function () {
+
+  /* ── 1. Describe the graph ─────────────────────────────────────────────── */
+  // Mermaid source, exactly as you would write it in a README. An object
+  // ({direction, nodes, edges}) works too if you are generating the graph.
+  const graph = `flowchart LR
+    build[Build] --> test[Test] --> review{Review}
+    review -. approved .-> ship([Ship])`;
+
+  const diagram = new LiveDiagram({ mount: '#diagram', graph, controls: true });
+
+  /* ── 2. Push state in, take events out ─────────────────────────────────── */
+  document.getElementById('start').onclick = () =>
+    diagram.patch({ build: { state: 'running', badge: '0.0s' } });
+
+  document.getElementById('finish').onclick = () =>
+    diagram.patch({
+      build:  { state: 'success', badge: '1.4s' },
+      test:   { state: 'success', badge: '6.2s' },
+      review: { state: 'waiting' },
+      'build->test': 'success',
+      'test->review': 'success'
+    });
+
+  document.getElementById('break').onclick = () =>
+    diagram.patch({
+      test: { state: 'error', badge: '3 failing' },
+      review: 'skipped',
+      ship: 'skipped',
+      // Edges take state through the same call, addressed `from->to`.
+      'build->test': 'success',
+      'test->review': 'error',
+      'review->ship': 'skipped'
+    });
+
+  document.getElementById('reset').onclick = () => diagram.clear();
+
+  diagram.on('nodeClick', ({ id, state, node }) => {
+    document.getElementById('out').textContent = `${id} — ${state}${node.description ? ' — ' + node.description : ''}`;
+  });
+});
+</script>
+</body>
+</html>

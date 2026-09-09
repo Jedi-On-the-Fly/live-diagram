@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live CI pipeline — live-diagram</title>
+<link rel="stylesheet" href="demo.css">
+</head>
+<body>
+<header>
+  <h1>Live CI pipeline</h1>
+  <p>Mermaid source in, state pushed as the run progresses. Nodes and edges both light up.</p>
+  <button onclick="toggleTheme()">Theme</button>
+  <a href="index.html">← all demos</a>
+</header>
+
+<main>
+  <section class="panel stage"><div id="diagram" style="height:100%"></div></section>
+
+  <aside class="side">
+    <section class="panel">
+      <h2>Run</h2>
+      <div class="body">
+        <div class="row">
+          <button class="primary" id="run">Start run</button>
+          <button id="fail">Start failing run</button>
+          <button id="reset">Reset</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Selected</h2>
+      <div class="body"><div id="selected"></div></div>
+    </section>
+
+    <section class="panel">
+      <h2>Events</h2>
+      <pre class="log" id="log">waiting…</pre>
+    </section>
+  </aside>
+</main>
+
+<script src="boot.js"></script>
+<script>
+// The diagram people already wrote. Mermaid source goes straight in — the
+// dotted edge to Deploy is `-.->`, exactly as it would be in a README.
+const SOURCE = `flowchart LR
+  checkout([Checkout]) --> install[Install]
+  install --> lint[Lint] & unit[Unit] & e2e[E2E]
+  lint & unit & e2e --> build[Build]
+  build -. on main .-> deploy([Deploy])`;
+
+const COMMANDS = {
+  checkout: 'git fetch --depth=1',
+  install: 'npm ci',
+  lint: 'eslint .',
+  unit: 'node --test',
+  e2e: 'playwright test',
+  build: 'npm run build',
+  deploy: 'ship it'
+};
+
+// A scripted run, in stages. Nodes inside a stage run at the same time —
+// which is the point of drawing a fan-out in the first place.
+const STAGES = [
+  [['checkout', 700]],
+  [['install', 1600]],
+  [['lint', 900], ['unit', 1500], ['e2e', 2400]],
+  [['build', 1200]],
+  [['deploy', 900]]
+];
+
+let chart = null;
+let timers = [];
+const tickers = new Map();
+
+function demo() {
+  chart = window.chart = new LiveDiagram({
+    mount: '#diagram',
+    graph: SOURCE,
+    controls: true,
+    theme: document.documentElement.getAttribute('data-theme')
+  });
+
+  // The detail panel is the library's: it already knows how to describe a node
+  // or an edge from the payload it emits.
+  LiveDiagram.inspector(chart, { mount: '#selected', mode: 'panel', empty: 'Click a node or an edge.' });
+
+  chart.on('nodeClick', ({ id, state }) => log(`nodeClick <b>${id}</b> (${state})`));
+  chart.on('edgeClick', ({ from, to, state }) => log(`edgeClick <b>${from} → ${to}</b> (${state})`));
+  chart.on('change', ({ changed, edgesChanged, structural }) => {
+    if (!structural && !edgesChanged.length) return;
+    const parts = changed.map((id) => `<b>${id}</b> → ${chart.get(id).state}`)
+      .concat(edgesChanged.map((id) => `<b>${id}</b> → ${chart.getEdge(id).state}`));
+    if (parts.length) log(parts.join(', '));
+  });
+
+  document.getElementById('run').onclick = () => run(null);
+  document.getElementById('fail').onclick = () => run('e2e');
+  document.getElementById('reset').onclick = reset;
+}
+
+function reset() {
+  timers.forEach(clearTimeout);
+  timers = [];
+  for (const id of tickers.keys()) stopTicker(id);
+  chart.clear();
+  document.getElementById('log').innerHTML = 'waiting…';
+}
+
+function run(failAt) {
+  reset();
+  let stageStart = 0;
+  let aborted = false;
+
+  for (const stage of STAGES) {
+    const stageLength = Math.max(...stage.map(([, ms]) => ms));
+    for (const [node, duration] of stage) {
+      const startsAt = stageStart;
+      timers.push(setTimeout(() => {
+        if (aborted) return;
+        chart.patch({ [node]: { state: 'running', badge: '0.0s', data: { command: COMMANDS[node] } } });
+        // Light the path that was actually taken: an edge into a node that just
+        // started, from a node that already finished.
+        for (const edge of chart.graph.edges) {
+          if (edge.to === node && chart.get(edge.from).state === 'success') {
+            chart.patch({ [edge.id]: 'success' });
+          }
+        }
+        startTicker(node);
+      }, startsAt));
+
+      timers.push(setTimeout(() => {
+        if (aborted) return;
+        stopTicker(node);
+        const failed = node === failAt;
+        chart.patch({
+          [node]: {
+            state: failed ? 'error' : 'success',
+            badge: (duration / 1000).toFixed(1) + 's',
+            data: { command: COMMANDS[node], exitCode: failed ? 1 : 0 },
+            merge: false
+          }
+        });
+        if (!failed) return;
+        aborted = true;
+        timers.forEach(clearTimeout);
+        for (const id of tickers.keys()) stopTicker(id);
+        // Anything still idle downstream is skipped, and the diagram says so —
+        // edges included, so the untaken path reads as untaken.
+        for (const id of Object.keys(chart.graph.nodes)) {
+          if (chart.get(id).state === 'idle') chart.patch({ [id]: 'skipped' });
+          if (chart.get(id).state === 'running') chart.patch({ [id]: { state: 'skipped', badge: null } });
+        }
+        for (const edge of chart.graph.edges) {
+          if (chart.getEdge(edge.id).state !== 'success') chart.patch({ [edge.id]: 'skipped' });
+        }
+        log(`run <b>failed</b> at ${node} — the rest is skipped`);
+      }, startsAt + duration));
+    }
+    stageStart += stageLength + 150;
+  }
+}
+
+/** Ticking duration badges — overlay chips, so counting never re-lays-out the graph. */
+function startTicker(node) {
+  const began = Date.now();
+  stopTicker(node);
+  tickers.set(node, setInterval(() => {
+    if (chart.get(node).state !== 'running') { stopTicker(node); return; }
+    chart.badge(node, ((Date.now() - began) / 1000).toFixed(1) + 's');
+  }, 100));
+}
+
+function stopTicker(node) {
+  if (tickers.has(node)) { clearInterval(tickers.get(node)); tickers.delete(node); }
+}
+
+function log(html) {
+  const el = document.getElementById('log');
+  if (el.textContent === 'waiting…') el.innerHTML = '';
+  el.innerHTML += (el.innerHTML ? '\n' : '') + html;
+  el.scrollTop = el.scrollHeight;
+}
+</script>
+</body>
+</html>

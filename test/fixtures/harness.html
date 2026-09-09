@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>live-diagram browser harness</title>
+<style>html,body{margin:0}#host{width:900px;height:600px}</style>
+</head>
+<body>
+<div id="host"></div>
+<div id="host2" style="width:600px;height:400px"></div>
+<script>
+// Mermaid from the local vendor copy if present (offline CI), else the CDN.
+window.__ready = new Promise((resolve, reject) => {
+  const load = (src, ok, fail) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = ok; s.onerror = fail;
+    document.head.appendChild(s);
+  };
+  const then = () => load('/dist/live-diagram.umd.js', resolve, reject);
+  load('/demo/vendor/mermaid.min.js', then,
+    () => load('https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js', then, reject));
+});
+</script>
+</body>
+</html>

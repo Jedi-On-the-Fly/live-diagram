@@ -1,0 +1,4 @@
+node_modules/
+demo/vendor/
+*.log
+.DS_Store

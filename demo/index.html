@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>live-diagram — demos</title>
+<link rel="stylesheet" href="demo.css">
+<style>
+  .wrap { max-width: 940px; margin: 0 auto; padding: 32px 24px 64px; }
+  .lede { font-size: 17px; color: var(--muted); max-width: 62ch; margin: 0 0 28px; }
+  .lede b { color: var(--ink); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .card { display: block; padding: 16px; border: 1px solid var(--line); border-radius: 12px;
+          background: var(--panel); text-decoration: none; color: inherit; }
+  .card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .card h3 { margin: 0 0 6px; font-size: 15px; }
+  .card p { margin: 0; color: var(--muted); font-size: 13px; }
+  .card span { display: inline-block; margin-top: 10px; font-size: 12px; color: var(--accent); }
+  h2.section { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 36px 0 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>live-diagram</h1>
+  <p>Turn a Mermaid diagram into a live control surface.</p>
+  <button onclick="toggleThemeStatic()">Theme</button>
+</header>
+
+<div class="wrap">
+  <p class="lede">
+    Mermaid renders a picture of your system. <b>live-diagram makes that picture the
+    system's control panel.</b> Bind any diagram to a live state source — nodes light up
+    as work runs, carry badges and data, and emit clicks back to your app.
+  </p>
+
+  <div class="cards">
+    <a class="card" href="playground.html">
+      <h3>Playground</h3>
+      <p>Paste the Mermaid diagram you already have, add state, share the URL. No rewrite, no build.</p>
+      <span>start here →</span>
+    </a>
+    <a class="card" href="pipeline.html">
+      <h3>Live CI pipeline</h3>
+      <p>Mermaid source in; parallel stages, ticking badges, and the path lighting up as it is taken.</p>
+      <span>the 5-second version →</span>
+    </a>
+    <a class="card" href="state-machine.html">
+      <h3>State machine inspector</h3>
+      <p>Clicking a state fires the transition into it — illegal moves are refused. Events out, not just in.</p>
+      <span>the diagram as an input device →</span>
+    </a>
+    <a class="card" href="replay.html">
+      <h3>Run replay</h3>
+      <p>Scrub a finished run backwards and forwards. Same component, different clock.</p>
+      <span>the part nothing else does →</span>
+    </a>
+    <a class="card" href="github-actions.html">
+      <h3>A GitHub Actions run</h3>
+      <p>The <code>/jobs</code> API mapped straight onto a diagram — stages inferred, failures in red, replayable.</p>
+      <span>bring your own run →</span>
+    </a>
+    <a class="card" href="infra.html">
+      <h3>Service health map</h3>
+      <p>A polling source drives the diagram. Break the database and watch it degrade.</p>
+      <span>one line of integration →</span>
+    </a>
+  </div>
+
+  <h2 class="section">All of it, in one file</h2>
+  <pre class="snippet">&lt;div id="diagram" style="height:420px"&gt;&lt;/div&gt;
+&lt;script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"&gt;&lt;/script&gt;
+&lt;script src="https://unpkg.com/live-diagram/dist/live-diagram.umd.min.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  const diagram = new LiveDiagram({
+    mount: '#diagram',
+    graph: {
+      direction: 'LR',
+      nodes: { build: { label: 'Build' }, test: { label: 'Test' }, ship: { label: 'Ship' } },
+      edges: [{ from: 'build', to: 'test' }, { from: 'test', to: 'ship' }]
+    }
+  });
+
+  diagram.patch({ build: 'success', test: { state: 'running', badge: '4s' } });
+  diagram.on('nodeClick', ({ id }) =&gt; console.log('clicked', id));
+&lt;/script&gt;</pre>
+</div>
+
+<script>
+function toggleThemeStatic() {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('ld-demo-theme', next); } catch (e) {}
+}
+(function () {
+  let stored = null;
+  try { stored = localStorage.getItem('ld-demo-theme'); } catch (e) {}
+  document.documentElement.setAttribute('data-theme', stored ||
+    (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+})();
+</script>
+</body>
+</html>

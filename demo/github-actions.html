@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GitHub Actions run — live-diagram</title>
+<link rel="stylesheet" href="demo.css">
+</head>
+<body>
+<header>
+  <h1>A GitHub Actions run</h1>
+  <p>The <code>/jobs</code> API in, a diagram out — including the replay of a run that already finished.</p>
+  <button onclick="toggleTheme()">Theme</button>
+  <a href="index.html">← all demos</a>
+</header>
+
+<main>
+  <section class="panel stage"><div id="diagram" style="height:100%"></div></section>
+
+  <aside class="side">
+    <section class="panel">
+      <h2>Run</h2>
+      <div class="body">
+        <div class="row">
+          <button class="primary" id="replay">▶ Replay</button>
+          <button id="jobs">Jobs</button>
+          <button id="steps">Steps of a job</button>
+        </div>
+        <dl class="kv" id="meta" style="margin-top:12px"></dl>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Selected job</h2>
+      <div class="body"><dl class="kv" id="selected"><dt>—</dt><dd>click a box</dd></dl></div>
+    </section>
+
+    <section class="panel">
+      <h2>Load a real run</h2>
+      <div class="body">
+        <input id="url" style="width:100%;padding:7px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:12px ui-monospace,monospace"
+               placeholder="https://api.github.com/repos/OWNER/REPO/actions/runs/ID/jobs">
+        <div class="row" style="margin-top:8px"><button id="load">Load</button></div>
+        <p style="color:var(--muted);font-size:12px;margin:10px 0 0">
+          Unauthenticated GitHub API calls are limited to 60 per hour per IP.
+          <code>needs:</code> is not in that response, so stages are inferred from start times.
+        </p>
+        <pre class="log" id="status" style="max-height:80px"></pre>
+      </div>
+    </section>
+  </aside>
+</main>
+
+<script src="boot.js"></script>
+<script>
+// `window.diagram` would collide with the <div id="diagram"> — an element id
+// becomes a global, and reading it before assigning gets you the div.
+let chart = null;
+let run = null;      // the raw payload
+let mapped = null;   // {graph, states, initial, events, meta}
+let mode = { mode: 'jobs' };
+
+function demo() {
+  fetch('data/github-run.json')
+    .then((r) => r.json())
+    .then((payload) => { run = payload; render(); })
+    .catch((err) => status('could not load the sample run: ' + err.message));
+
+  document.getElementById('replay').onclick = () => {
+    if (!chart || !mapped.events.length) return;
+    chart.clear();
+    chart.timeline(mapped.events).play({ speed: 12 });
+    status('replaying at 12×');
+  };
+  document.getElementById('jobs').onclick = () => { mode = { mode: 'jobs' }; render(); };
+  document.getElementById('steps').onclick = () => {
+    const names = run.jobs.filter((j) => (j.steps || []).length).map((j) => j.name);
+    const name = prompt('Which job?\n\n' + names.join('\n'), names[0]);
+    if (!name) return;
+    mode = { mode: 'steps', job: name };
+    render();
+  };
+  document.getElementById('load').onclick = () => {
+    const url = document.getElementById('url').value.trim();
+    if (!url) return;
+    status('fetching…');
+    fetch(url, { headers: { accept: 'application/vnd.github+json' } })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))))
+      .then((payload) => { run = payload; mode = { mode: 'jobs' }; render(); status('loaded ' + (payload.jobs || []).length + ' jobs'); })
+      .catch((err) => status('failed: ' + err.message));
+  };
+}
+
+function render() {
+  try {
+    mapped = LiveDiagram.fromGitHubActions(run, { ...mode, direction: mode.mode === 'steps' ? 'TB' : 'LR' });
+  } catch (err) {
+    status(err.message);
+    return;
+  }
+
+  if (chart) chart.destroy();
+  chart = window.chart = new LiveDiagram({
+    mount: '#diagram',
+    graph: mapped.graph,
+    states: mapped.states,
+    initial: mapped.initial,
+    controls: true,
+    theme: document.documentElement.getAttribute('data-theme')
+  });
+
+  chart.on('nodeClick', ({ id, node, state, badge, data }) => {
+    document.getElementById('selected').innerHTML =
+      `<dt>job</dt><dd>${node.label}</dd>` +
+      `<dt>state</dt><dd>${state}</dd>` +
+      `<dt>took</dt><dd>${badge || '—'}</dd>` +
+      (node.meta && node.meta.runner ? `<dt>runner</dt><dd>${node.meta.runner}</dd>` : '') +
+      (data && data.url ? `<dt>log</dt><dd><a href="${data.url}" target="_blank" rel="noopener">open ↗</a></dd>` : '');
+  });
+
+  const m = mapped.meta;
+  document.getElementById('meta').innerHTML =
+    (m.job ? `<dt>job</dt><dd>${m.job}</dd><dt>steps</dt><dd>${m.steps}</dd>`
+           : `<dt>jobs</dt><dd>${m.jobs}</dd><dt>outcome</dt><dd>${m.conclusion}</dd>`) +
+    `<dt>edges</dt><dd>${m.inferredDependencies ? 'inferred' : 'from needs:'}</dd>`;
+}
+
+function status(text) {
+  document.getElementById('status').textContent = text;
+}
+</script>
+</body>
+</html>
