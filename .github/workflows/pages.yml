@@ -3,6 +3,8 @@ name: Demos
 # Publishes demo/ (and dist/, which the demos load) to GitHub Pages, so the
 # README can link to a running diagram rather than to a screenshot of one.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:

@@ -13,14 +13,14 @@ system's control panel.** Bind any diagram to a live state source — nodes ligh
 up as work runs, carry badges and data, and emit clicks back to your app.
 One small library: your graph in, an interactive, real-time, replayable diagram out.
 
-**[▶ Try the demos](https://mistamid.github.io/live-diagram/demo/)** — start with the
-[playground](https://mistamid.github.io/live-diagram/demo/playground.html) (paste your own Mermaid,
+**[▶ Try the demos](https://jedi-on-the-fly.github.io/live-diagram/demo/)** — start with the
+[playground](https://jedi-on-the-fly.github.io/live-diagram/demo/playground.html) (paste your own Mermaid,
 add state, share the URL), then a
-[CI pipeline](https://mistamid.github.io/live-diagram/demo/pipeline.html) running live, a
-[GitHub Actions run](https://mistamid.github.io/live-diagram/demo/github-actions.html) drawn from the
-API, a [state machine](https://mistamid.github.io/live-diagram/demo/state-machine.html) you drive by
-clicking, a [run replay](https://mistamid.github.io/live-diagram/demo/replay.html) you can scrub, a
-[health map](https://mistamid.github.io/live-diagram/demo/infra.html) fed by a poller.
+[CI pipeline](https://jedi-on-the-fly.github.io/live-diagram/demo/pipeline.html) running live, a
+[GitHub Actions run](https://jedi-on-the-fly.github.io/live-diagram/demo/github-actions.html) drawn from the
+API, a [state machine](https://jedi-on-the-fly.github.io/live-diagram/demo/state-machine.html) you drive by
+clicking, a [run replay](https://jedi-on-the-fly.github.io/live-diagram/demo/replay.html) you can scrub, a
+[health map](https://jedi-on-the-fly.github.io/live-diagram/demo/infra.html) fed by a poller.
 Or open [`starter.html`](starter.html) from a clone — one file, no build.
 
 ---

@@ -87,11 +87,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MistaMid/live-diagram.git"
+    "url": "git+https://github.com/Jedi-On-the-Fly/live-diagram.git"
   },
-  "homepage": "https://mistamid.github.io/live-diagram/demo/",
+  "homepage": "https://jedi-on-the-fly.github.io/live-diagram/demo/",
   "bugs": {
-    "url": "https://github.com/MistaMid/live-diagram/issues"
+    "url": "https://github.com/Jedi-On-the-Fly/live-diagram/issues"
   },
   "types": "./dist/types/index.d.ts"
 }

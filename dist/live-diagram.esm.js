@@ -1,5 +1,5 @@
 /*! live-diagram v0.4.2 — Turn a Mermaid diagram into a live control surface: push state in, get clicks out, replay the whole thing.
- *  https://mistamid.github.io/live-diagram/demo/
+ *  https://jedi-on-the-fly.github.io/live-diagram/demo/
  *  MIT licensed. Built by scripts/build.js — do not edit dist/ by hand.
  */
 
