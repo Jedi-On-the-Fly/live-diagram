@@ -25,6 +25,7 @@ jobs:
         run: npm test
       - name: Browser tests
         run: |
-          sudo rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google.list
+          sudo grep -rl "dl.google.com" /etc/apt/ 2>/dev/null | xargs sudo rm -f
+          sudo apt-get update -qq
           npx playwright install --with-deps chromium
           npm run test:browser
