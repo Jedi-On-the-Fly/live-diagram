@@ -33,7 +33,7 @@ jobs:
         run: |
           mkdir -p _site/demo _site/dist
           cp -r demo/* _site/demo/
-          cp dist/* _site/dist/
+          cp dist/live-diagram.* _site/dist/
           cp starter.html _site/
           cp -r docs/media _site/media
           # The demos load ../dist/*, which resolves the same way once deployed.
